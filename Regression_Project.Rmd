@@ -1,0 +1,557 @@
+---
+title: "REGRESSION PROJECT"
+author: "THU NGUYEN & CHAU TRAN"
+date: "2025-04-14"
+output:
+  word_document: default
+  html_document:
+    highlight: monochrome
+    theme: readable
+---
+# Part I*
+
+# Can beauty really boost your paycheck ? (Beauty Dataset)
+
+![Illustration Image](Intropic1.jpg)
+
+This seemingly simple question has sparked curiosity across economics, sociology, and HR fields for decades. In this project, we dive into real-world data to explore whether physical appearance—specifically being rated as above or below average in beauty—has a statistically significant impact on a person’s wage.
+
+### Section A: Data Description (Response, predictors, continuous, categorical variables and missing data.)
+
+Response variable 
+
+- lwage: log(wage)
+
+Predictors
+
+Categorical
+
+- belavg: =1 if looks <= 2
+
+- abvavg: =1 if looks >=4
+
+- union: =1 if union member
+
+- goodhlth: =1 if good health
+
+- black: =1 if black
+
+- female: =1 if female
+
+- married: =1 if married
+
+- south: =1 if live in south
+
+- bigcity: =1 if live in big city
+
+- smllcity: =1 if live in small city
+
+- service: =1 if service industry
+
+Continuous
+
+- exper: years of workforce experience
+
+- expersq: exper^2
+
+- educ: years of schooling
+
+Unused
+
+- looks: from 1 to 5
+
+- wage: hourly wage
+
+REMARK: We choose 'lwage' as response to make the distribution closer to normal because 'wage' are skewed, a few earns a lot more. We don't use 'looks' because we already have 'belavg' and 'abvavg'. There are no missing values. 
+
+```{r, message = FALSE, warning = F}
+library(wooldridge)
+colSums(is.na(beauty))
+boxplot(beauty$wage, main = "Boxplot of Wage", horizontal = TRUE, col = "salmon")
+```
+
++ The boxplot is a good way to visualize the distribution of the wage variable. It shows that there are some outliers on the right side, indicating that a few individuals earn significantly more than the rest.
+
+### Section B: Build an optimal model
+Print summary: discuss F-test, t-tests, R-square, S-square. Take out outliers.
+
+```{r, message = FALSE, warning = F}
+# full model
+model <- lm(lwage ~ belavg + abvavg + exper + expersq + educ + union + female + black + goodhlth + married + south + bigcity + smllcity + service, data = beauty)
+summary(model)
+```
+
++ Being rated as below average in looks (belavg) is significantly associated with lower wages, while being above average in looks (abvavg) has no significant effect on wages.
+
++ Other factors like more education, work experience, union membership, and living in a big or small city are positively associated with higher wages, while being female or working in the service industry is associated with lower wages.
+
+```{r, message = FALSE, warning = F}
+# reduced model
+reduced_model <- step(model, trace=0)
+summary(reduced_model)
+anova(model, reduced_model)
+```
+
++ Being rated as below average in looks is still significantly linked to lower wages, and removing variables like above-average looks, health, and marital status doesn't change this.
+
++ Factors such as education, experience, union membership, and living in cities remain positively associated with wages, while being female or working in the service sector continues to be linked with lower wages.
+
++ The model comparison shows that excluding variables like abvavg, goodhlth, and married doesn’t significantly worsen the model (p = 0.35), suggesting they don’t contribute much to explaining wage differences.
+
+```{r, message = FALSE, warning = F}
+library(MASS)
+boxcox(reduced_model, lambda = seq(-2, 2, 0.1))
+```
+
+The chart shows that the log-likelihood is maximized around λ = 1, which lies within the 95% confidence interval. This means no transformation (or keeping the log-wage as is) is appropriate, and there's no strong evidence to suggest a different transformation would improve model fit.
+
+```{r, message = FALSE, warning = F}
+library(car)
+vif(reduced_model)
+```
+
+Most predictors have low multicollinearity, but `exper` and `expersq` show high multicollinearity with VIFs above 15.
+
+```{r, message = FALSE, warning = F}
+# cooks
+cooks <- cooks.distance(reduced_model)
+plot(cooks)
+abline(h = 2.422e-04	, col = "red", lty = 2)
+beauty.new <- beauty[ cooks <2.422e-04, ]
+model.final <- update(reduced_model, data=beauty.new)
+summary(model.final)
+```
+
+### Section C: Discuss Residuals
+```{r, message = FALSE, warning = F}
+par(mfrow = c(2, 2))   
+plot(model.final)
+```
+
++ The Q-Q plot shows that the residuals are approximately normally distributed.It tells us that the normality assumption of the linear regression model is mostly satisfied, meaning the model's inference (like p-values and confidence intervals) is generally reliable.
+
++ The Residuals vs Fitted plot tells us that the residuals are randomly scattered around zero with no clear pattern, suggesting that the model’s linearity and homoscedasticity (constant variance) assumptions are reasonably met.
+
+
+### Section D: Two Predictions with CI
+```{r, message = FALSE, warning = F}
+newdata <- data.frame(
+  belavg = c(0,1),
+  exper = c(10,5),
+  expersq = c(100,25),
+  educ = c(16,10),
+  union = c(1,0),
+  female = c(0,1),
+  black = c(0,0),
+  south = c(0,1),
+  bigcity = c(1,0),
+  smllcity = c(0,1),
+  service = c(0,1)
+)
+
+# predictions 
+exp(predict(model.final, newdata, interval = "confidence"))
+
+```
+
++ The model predicts that the first person earns significantly more than the second, suggesting factors like education, experience, gender, union status, and especially looks may play a substantial role in determining wages.
+
+# Part I**
+# Exploring Socioeconomic and Regional Predictors of Murder Rates in the U.S.
+
+![Illustration Image](Intropic2.jpg)
+
+### Section A: Data Description (Response, predictors, continuous, categorical variables and missing data.)
+
+Response
+
+rate:
+
+Predictors
+
+Continuous
+
+convictions: Number of convictions divided by number of murders 
+
+executions: Average number of executions 
+
+time: Median time served
+
+income: Median family income 
+
+lfp: Labor force participation rate
+
+noncauc: Proportion that is non-Caucasian
+
+Categorical
+
+southern: region
+
+```{r, message = FALSE, warning = F}
+library(AER)
+data("MurderRates")
+str(MurderRates)
+colSums(is.na(MurderRates))
+```
+
+### Section B: Build an optimal model
+
+```{r, message = FALSE, warning = F}
+# full model
+model <- lm(rate ~ convictions + executions + time + income + lfp + noncauc + southern, data = MurderRates)
+summary(model)
+```
+
++ **Significant Predictors**: *Time* (`p = 0.0348`) and *Southern (yes)* (`p = 0.0191`) are statistically significant predictors of murder rate, while *Noncauc* is marginally significant (`p = 0.0623`).
++ **Model Fit**: The model explains a substantial portion of the variance in murder rate with an R² of **0.746**, indicating a good overall fit.
+
+```{r, message = FALSE, warning = F}
+# reduced model
+reduced_model <- step(model, trace=0)
+summary(reduced_model)
+anova(model, reduced_model)
+```
+
++ **Significant Predictors**: *Time* (`p = 0.0407`), *Noncauc* (`p = 0.0035`), and *Southern (yes)* (`p = 0.0029`) significantly predict murder rate; *Convictions* is marginally significant (`p = 0.0717`).
++ **Model Fit**: The reduced model has a strong fit with an R² of **0.729**, and the ANOVA comparison with the full model shows no significant loss of explanatory power (`p = 0.497`).
+
+```{r, message = FALSE, warning = F}
+library(MASS)
+boxcox(reduced_model, lambda = seq(-2, 2, 0.1))
+model.log <- update(reduced_model, log(rate) ~ .)
+```
+
++ The plot showed that the best transformation is the natural logarithm (log), since the optimal value of lambda (λ) was close to 0 and within the 95% confidence range. Based on that, we updated the model to use log(rate) instead. This helps the model better meet the assumptions of linear regression and gives us more reliable results when interpreting the data.
+
+```{r, message = FALSE, warning = F}
+library(car)
+vif(model.log)
+```
+
++ To check if any of the predictors in our model were too closely related to each other, we ran a VIF (Variance Inflation Factor) test. All the values came back well below the typical cutoff of 5, with the highest being just around 2.3. This tells us that multicollinearity isn’t an issue in our model—each variable is bringing its own unique information to the table.
+
+```{r, message = FALSE, warning = F}
+# cooks
+cooks <- cooks.distance(model.log)
+plot(cooks)
+abline(h = 0.0130382 	, col = "red", lty = 2)
+murder.new <- MurderRates[ cooks < 0.0130382, ]
+model.final <- update(model.log, data=murder.new)
+summary(model.final)
+anova(model.final)
+```
+
++ We used Cook’s Distance to check if any states were pulling the model too much in their direction. Most of the points stayed well below the red line, which means they weren’t overly influential.
+
++ After removing overly influential data points, we refit the model to predict the log of the murder rate and got a really strong fit—over 90% of the variation is explained by just four factors. The results show that states with higher conviction rates and longer prison times tend to have lower murder rates. On the other hand, states with a higher proportion of non-Caucasians and those located in the South tend to have higher murder rates. All of these relationships are statistically significant, meaning they’re unlikely to be due to chance. This model gives us a clearer, more stable picture of what might be influencing murder rates across states.
+
+### Section C: Discuss Residuals
+
+```{r, message = FALSE, warning = F}
+par(mfrow = c(2, 2))   
+plot(model.final)
+```
+
++ Top left (Residuals vs Fitted): The points are fairly scattered with no strong pattern, which suggests that the model’s predictions are generally unbiased and the assumption of linearity holds.
+
++ Top right (Q-Q Plot): Most of the points fall along the line, meaning the residuals are approximately normally distributed—another good sign.
+
++ Bottom left (Scale-Location): This plot checks for constant variance (homoscedasticity), and the spread of the points looks fairly even, which means we’re not seeing major issues with variance changing across the fitted values.
+
++ Bottom right (Residuals vs Leverage): There are no extreme points with both high leverage and large residuals, so no single data point seems to be dominating the model.
+
+### Section D: Two Predictions with CI
+```{r, message = FALSE, warning = F}
+newdata <- data.frame(
+  convictions = c(0.7, 0.15),
+  time = c(150, 80),
+  noncauc = c(0.25, 0.05),
+  southern = factor(c("yes", "no"), levels = c("no", "yes"))
+)
+
+exp(predict(model.final, newdata, interval = "confidence"))
+```
+
++ First Case
+
+High conviction rate (0.7), long time served (150), higher non-Caucasian proportion (0.25), and southern state
+
+Predicted murder rate: ~4.02 per 100,000
+
+95% confidence interval: 2.59 to 6.23
+
++ Second Case
+
+Lower conviction rate (0.15), shorter prison time (80), low non-Caucasian proportion (0.05), and non-southern state
+
+Predicted murder rate: ~3.98 per 100,000
+
+95% confidence interval: 3.14 to 5.05
+
++ We used our model to predict murder rates for two made-up states, one in the South with a tough justice system and one elsewhere with softer stats. Interestingly, both came out with similar predicted murder rates—just under 4 per 100,000—with overlapping confidence intervals. That means while their backgrounds differ, the model sees them as having about the same expected outcome.
+
+# Part II
+
+# Finance Project: Stock Analysis Using R & Yahoo Finance (2021–2024)
+## INTRODUCTION
+
+![Stock Illustration Image](stock1.jpg)
+
+This project analyzes the historical performance of five major U.S. companies — **Bank of America (BAC), JPMorgan Chase (JPM), Tesla (TSLA), Nvidia (NVDA), and Alphabet (GOOG) — over the period 2021 to 2024**. We evaluate their price trends, risk-return profiles, correlations, and sensitivity to market movements using S&P 500 as the benchmark 
+
+### Load Required Packages
+
+```{r, message = FALSE, warning = F}
+library(quantmod)
+library(PerformanceAnalytics)
+library(xts)
+```
+
+### Data Collection
+We retrieve daily adjusted close prices from Yahoo Finance:
+
+```{r, message = FALSE, warning = F}
+# from 2021 to 2024 
+start <- as.Date("2021-01-01")
+end <- as.Date("2024-12-31")
+
+# load stock data 
+# Bank of America 
+BAC <- getSymbols("BAC", from=start, to=end, auto.assign = F)
+# Chase
+JPM <- getSymbols("JPM", from=start, to=end, auto.assign = F)
+# Tesla 
+TSLA <- getSymbols("TSLA", from=start, to=end, auto.assign = F)
+# Nvidia
+NVDA <- getSymbols("NVDA", from=start, to=end, auto.assign = F)
+# Google
+GOOG <- getSymbols("GOOG", from=start, to=end, auto.assign = F)
+```
+
+### Section A: Visualizing Stock Prices
+We visualize the price trends of each stock:
+
+```{r, message = FALSE, warning = F}
+BAC.Close <-Cl(BAC)
+JPM.Close <- Cl(JPM)
+TSLA.Close <-Cl(TSLA)
+NVDA.Close <- Cl(NVDA)
+GOOG.Close <- Cl(GOOG)
+
+chartSeries(BAC, name = "Bank of America" )
+chartSeries(JPM, name = "JPMorgan Chase")
+chartSeries(TSLA, name = "Tesla")
+chartSeries(NVDA, name = "Nvidia")
+chartSeries(GOOG, name = "Google")
+```
+
+*BAC (Bank of America)*
+
+Pattern: Moderate fluctuations with a dip around 2022–2023 and a recovery into 2024.
+
+Insight: Reflects sensitivity to interest rates and economic conditions. Volatility is moderate, and the stock has mostly recovered by late 2024.
+
+*GOOG (Alphabet)*
+
+Pattern: Strong uptrend overall despite a dip during mid-2022.
+
+Insight: Google's long-term growth trend is intact, with price resilience and a sharp upward move in 2023–2024 possibly reflecting AI and cloud momentum.
+
+*JPM (JPMorgan Chase)*
+
+Pattern: Stable in early years, then strong, consistent growth starting mid-2022.
+
+Insight: Reflects strength in banking sector recovery and favorable macro conditions (e.g., rate hikes improving margins).
+
+*NVDA (Nvidia)*
+
+Pattern: Explosive growth from late 2022 through 2024.
+
+Insight: One of the best performers. Likely due to its leadership in AI, GPU, and semiconductor markets. A very strong growth stock.
+
+*SP500*
+
+Pattern: Broad market volatility in 2022, followed by a strong rally into 2024.
+
+Insight: Captures the post-COVID normalization, interest rate environment, and tech-driven rally in 2023–2024.
+
+*TSLA (Tesla)*
+
+Pattern: Very volatile with multiple price swings; final rally in late 2024.
+
+Insight: Reflects speculative trading, news sensitivity (e.g., product rollouts, Elon Musk-related events), and investor sentiment in EV/tech space. High risk, high return.
+
+### Section B: Return, Risk & Correlation
+We analyze return and risk characteristics:
+
+```{r, message = FALSE, warning = F}
+# returns
+BAC.return <- dailyReturn(BAC.Close)
+JPM.return <- dailyReturn(JPM.Close)
+TSLA.return <- dailyReturn(TSLA.Close)
+NVDA.return <- dailyReturn(NVDA.Close)
+GOOG.return <- dailyReturn(GOOG.Close)
+
+# annualized return 
+BAC.mu.ann <- round(mean(BAC.return)*252,3)
+JPM.mu.ann <- round(mean(JPM.return)*252, 3)
+TSLA.mu.ann <- round(mean(TSLA.return)*252, 3)
+NVDA.mu.ann <- round(mean(NVDA.return)*252, 3)
+GOOG.mu.ann <- round(mean(GOOG.return)*252, 3)
+
+# annualized risk 
+BAC.sd.ann <- round(sd(BAC.return)*sqrt(252), 3)
+JPM.sd.ann <- round(sd(JPM.return)*sqrt(252), 3)
+TSLA.sd.ann <- round(sd(TSLA.return)*sqrt(252), 3)
+NVDA.sd.ann <- round(sd(NVDA.return)*sqrt(252), 3)
+GOOG.sd.ann <- round(sd(GOOG.return)*sqrt(252), 3)
+
+# summary table of annualized average return and annualized risk
+data.frame(Stock = c("BAC", "JPM", "TSLA", "NVDA", "GOOG"), Annualized_Return = c(BAC.mu.ann, JPM.mu.ann, TSLA.mu.ann, NVDA.mu.ann, GOOG.mu.ann), Annualized_Risk = c(BAC.sd.ann, JPM.sd.ann, TSLA.sd.ann, NVDA.sd.ann, GOOG.sd.ann))
+
+# correlation matrix 
+returns <- na.omit(data.frame(
+  BAC = BAC.return,
+  JPM = JPM.return,
+  TSLA = TSLA.return,
+  NVDA = NVDA.return,
+  GOOG = GOOG.return
+))
+colnames(returns) <- c("BAC", "JPM", "TSLA", "NVDA", "GOOG")
+cor_matrix <- cor(returns)
+round(cor_matrix, 3)
+```
+#### Correlation Matrix Interpretation
+
+##### Strongest Correlation
+- **BAC and JPM**: 0.8227  
+  These two banking stocks show a very strong positive correlation, likely because they belong to the same industry and are influenced by similar macroeconomic conditions.
+
+##### Moderate Correlations
+- **GOOG and NVDA**: 0.5420  
+  These are both large technology companies, which may explain the moderate correlation due to common exposure to market and tech sector trends.
+
+- **TSLA and NVDA**: 0.4622  
+  Both are considered growth and innovation-driven stocks, contributing to their moderate co-movement.
+
+- **GOOG and TSLA**: 0.3840  
+  A moderate relationship exists, possibly due to both being popular tech-related equities, but they operate in different industries.
+
+##### Weak Correlations
+- **TSLA and BAC**: 0.2691  
+- **TSLA and JPM**: 0.2594  
+- **BAC and NVDA**: 0.2523  
+
+These weak correlations suggest that combining financial sector stocks (BAC, JPM) with high-growth tech stocks (TSLA, NVDA) may provide diversification benefits in a portfolio.
+
+### Section C: Cumulative Return Visualization
+We visualize investment growth over time:
+
+```{r, message = FALSE, warning = F}
+SP500 <- getSymbols("^GSPC", from=start, to=end, auto.assign = FALSE)
+SP500.close <- SP500[ , 4]
+SP500.return <- dailyReturn(SP500.close) 
+SP500.cp <- cumprod(1 + SP500.return)
+
+BAC.cp <- cumprod(1 + BAC.return)
+JPM.cp <- cumprod(1 + JPM.return)
+TSLA.cp <- cumprod(1 + TSLA.return)
+NVDA.cp <- cumprod(1 + NVDA.return)
+GOOG.cp <- cumprod(1 + GOOG.return)
+
+plot(SP500.cp, type="l", col="black",ylim=c(0, 3))
+lines(BAC.cp, type="l", col="blue")
+lines(JPM.cp, type="l", col="red")
+lines(TSLA.cp, type="l", col="green")
+lines(NVDA.cp, type="l", col="orange")
+lines(GOOG.cp, type="l", col="pink")
+
+addLegend("topright",on=1,legend.names = c("Benchmark","BAC","JPM","TSLA", "NVDA", "GOOG"),lty=c(1, 1, 1), lwd=c(2, 2, 2), col =c("black",'blue',"red","green","orange", "pink"),bg="white", bty="o")
+
+```
+
+#### Cumulative Return Interpretation
+The chart shows how $1 invested in each stock at the start of 2021 would have grown by the end of 2024.
+
+##### NVDA
+- Stands out as the best performer.
+- Grew over 5x during the period.
+- The steep rise from mid-2023 to mid-2024 indicates a surge in investor interest, likely due to developments in AI, GPU demand, and the semiconductor boom.
+
+##### GOOG
+- Shows consistent upward growth with mild fluctuations.
+- Its steady performance reflects the strength of Alphabet's diversified business model.
+
+##### JPM and BAC
+- Both show modest, stable cumulative returns.
+- Their performance reflects traditional banking stock behavior—sensitive to interest rates and macroeconomic policies but less volatile than tech stocks.
+
+##### TSLA
+- Displays noticeable volatility throughout the period.
+- While it underperformed for a long stretch (especially 2022–2023), there is an upward recovery by the end of 2024.
+- Reflects high-risk, high-reward characteristics typical of Tesla.
+
+##### Key Takeaways
+- **NVDA** significantly outperformed others, making it a top growth stock.
+- **GOOG** provided a balance of growth and stability.
+- **JPM and BAC** offered lower risk and steady returns.
+- **TSLA** showed the most volatility and inconsistent growth.
+
+These differences highlight the trade-off between growth potential and risk across different sectors.
+
+### Section D: Alpha, Beta, R-squared 
+Regression vs market to assess sensitivity:
+
+```{r, message = FALSE, warning = F}
+rf <- read.csv("F-F_Research_Data_Factors_daily.csv", head=T, skip=4)
+head(rf)
+rf$dates <- as.Date(rf$X, format="%Y%m%d")
+rf <- rf[!is.na(rf$dates) & !is.na(rf$RF), ]
+rf.new <- rf[rf$dates >= start & rf$dates <= end, ]
+rf.xts <- xts(rf.new$RF, order.by = rf.new$dates)
+
+BAC.clean  <- na.omit(merge(BAC.return, SP500.return, rf.xts))
+JPM.clean  <- na.omit(merge(JPM.return, SP500.return, rf.xts))
+TSLA.clean <- na.omit(merge(TSLA.return, SP500.return, rf.xts))
+NVDA.clean <- na.omit(merge(NVDA.return, SP500.return, rf.xts))
+GOOG.clean <- na.omit(merge(GOOG.return, SP500.return, rf.xts))
+
+beta <- function(stock.return, market.return, riskfree.rate){
+  stock.excess <- stock.return - riskfree.rate
+  market.excess <- market.return - riskfree.rate
+
+  model <- lm(stock.excess ~ market.excess)
+  coefs <- coef(model)
+  Rsquare <- summary(model)$r.squared
+
+  results <- data.frame(coefs[1], coefs[2], Rsquare)
+  names(results) <- c("alpha", "beta", "Rsquare")
+
+  print(results)
+}
+
+beta(BAC.return, SP500.return, rf.xts)
+beta(JPM.return, SP500.return, rf.xts)
+beta(TSLA.return, SP500.return, rf.xts)
+beta(NVDA.return, SP500.return, rf.xts)
+beta(GOOG.return, SP500.return, rf.xts)
+```
+##### Interpretation
+
+- **Alpha** represents the stock's return when the market return is zero. A positive alpha suggests outperformance relative to the market.
+- **Beta** measures sensitivity to market movement. A beta > 1 implies higher volatility than the market, while < 1 indicates lower volatility.
+- **R²** indicates how much of the stock's movement is explained by the market. A higher R² means the stock closely follows the market.
+
+##### Observations
+
+- **GOOG** and **NVDA** have the highest R² values (0.50 and 0.49), meaning their returns are more closely aligned with the market.
+- **NVDA** and **TSLA** show the highest **beta** values (2.22 and 1.95), indicating strong reactions to market changes — these are high-volatility stocks.
+- **BAC** and **JPM** have **betas below 1**, showing lower market sensitivity, typical of financial sector stocks.
+- **NVDA** has the highest **alpha** (0.00119), suggesting notable excess return beyond market movement.
+- **TSLA** has a negative alpha and low R², suggesting higher volatility and less predictable relationship with the market.
+
+##### Conclusion
+
+- **GOOG** and **NVDA** are more market-aligned with higher explanatory power.
+- **TSLA** is high-risk, high-beta with less market explainability.
+- **BAC** and **JPM** are more stable, market-neutral investments.
